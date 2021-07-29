@@ -35,7 +35,7 @@ where
         }
         Ok(())
     }
-    pub fn get<E>(&mut self) -> Result<PressedKeys<CS, RS>, E>
+    pub fn scan<E>(&mut self) -> Result<PressedKeys<CS, RS>, E>
     where
         C: InputPin<Error = E>,
         R: OutputPin<Error = E>,

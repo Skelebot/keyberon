@@ -7,7 +7,6 @@
 //! duration for keyboard switches.
 
 use crate::layout::Event;
-use either::Either::*;
 
 /// The debouncer type.
 pub struct Debouncer<T> {
@@ -38,15 +37,20 @@ impl<T> Debouncer<T> {
 
 impl<T: PartialEq> Debouncer<T> {
     /// Gets the current state.
-    pub fn get(&self) -> &T {
+    pub fn get_state(&self) -> &T {
         &self.cur
     }
 
-    /// Updates the current state.  Returns `true` if the state changes.
-    pub fn update(&mut self, new: T) -> bool {
+    /// Updates the current state. Returns an iterator of new events if the state changes.
+    pub fn update<'a, U: 'a>(&'a mut self, new: T) -> Option<impl Iterator<Item = Event> + 'a> 
+        where
+        &'a T: IntoIterator<Item = U>,
+        U: IntoIterator<Item = &'a bool>,
+        U::IntoIter: 'a,
+    {
         if self.cur == new {
             self.since = 0;
-            return false;
+            return None;
         }
 
         if self.new != new {
@@ -59,9 +63,9 @@ impl<T: PartialEq> Debouncer<T> {
         if self.since > self.nb_bounce {
             core::mem::swap(&mut self.cur, &mut self.new);
             self.since = 0;
-            true
+            Some(self.events())
         } else {
-            false
+            None
         }
     }
 
@@ -69,7 +73,7 @@ impl<T: PartialEq> Debouncer<T> {
     ///
     /// `T` must be some kind of array of array of bool.
     ///
-    /// Panics if the coordinates doesn't fit in a `(u8, u8)`.
+    /// Panics if the coordinates don't fit in a `(u8, u8)`.
     ///
     /// # Example
     ///
@@ -82,43 +86,36 @@ impl<T: PartialEq> Debouncer<T> {
     ///     2,
     /// );
     ///
-    /// // no changes
-    /// assert_eq!(0, debouncer.events([[false, false], [false, false]]).count());
+    /// // no events
+    /// assert!(debouncer.update([[false, false], [false, false]]).is_none());
     ///
-    /// // `(0, 1)` pressed, but debouncer is filtering
-    /// assert_eq!(0, debouncer.events([[false, true], [false, false]]).count());
-    /// assert_eq!(0, debouncer.events([[false, true], [false, false]]).count());
+    /// // `(0, 1)` is being pressed, but debouncer is filtering
+    /// assert!(debouncer.update([[false, true], [false, false]]).is_none());
+    /// assert!(debouncer.update([[false, true], [false, false]]).is_none());
     ///
-    /// // `(0, 1)` stable enough, event appear.
-    /// assert_eq!(
-    ///     vec![Event::Press(0, 1)],
-    ///     debouncer.events([[false, true], [false, false]]).collect::<Vec<_>>(),
-    /// );
+    /// // `(0, 1)` is stable enough, event appears.
+    /// let mut events = debouncer.update([[false, true], [false, false]]).unwrap();
+    /// assert_eq!(events.next(), Some(Event::Press(0, 1)));
+    /// assert_eq!(events.next(), None);
     /// ```
-    pub fn events<'a, U>(&'a mut self, new: T) -> impl Iterator<Item = Event> + 'a
+    fn events<'a, U>(&'a mut self) -> impl Iterator<Item = Event> + 'a
     where
         &'a T: IntoIterator<Item = U>,
         U: IntoIterator<Item = &'a bool>,
         U::IntoIter: 'a,
     {
-        if self.update(new) {
-            Left(
-                self.new
-                    .into_iter()
-                    .zip(self.cur.into_iter())
-                    .enumerate()
-                    .flat_map(move |(i, (o, n))| {
-                        o.into_iter().zip(n.into_iter()).enumerate().filter_map(
-                            move |(j, bools)| match bools {
-                                (false, true) => Some(Event::Press(i as u8, j as u8)),
-                                (true, false) => Some(Event::Release(i as u8, j as u8)),
-                                _ => None,
-                            },
-                        )
-                    }),
-            )
-        } else {
-            Right(core::iter::empty())
-        }
+        self.new
+            .into_iter()
+            .zip(self.cur.into_iter())
+            .enumerate()
+            .flat_map(move |(i, (o, n))| {
+                o.into_iter().zip(n.into_iter()).enumerate().filter_map(
+                    move |(j, bools)| match bools {
+                        (false, true) => Some(Event::Press(i as u8, j as u8)),
+                        (true, false) => Some(Event::Release(i as u8, j as u8)),
+                        _ => None,
+                    },
+                )
+            })
     }
 }
