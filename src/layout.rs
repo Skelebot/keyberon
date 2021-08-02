@@ -64,7 +64,7 @@ use State::*;
 /// `keyberon::layout::NoCustom` (or `core::convert::Infallible`).
 pub type Layers<T, const C: usize, const R: usize, const L: usize> = [[[Action<T>; C]; R]; L];
 
-type Stack = ArrayDeque<[Stacked; 16], arraydeque::behavior::Wrapping>;
+type Deque = ArrayDeque<[Stacked; 16], arraydeque::behavior::Wrapping>;
 
 /// Indicates that the layout doesn't contain user-defined actions ([Action::Custom])
 pub type NoCustom = core::convert::Infallible;
@@ -79,7 +79,7 @@ where
     default_layer: usize,
     states: Vec<State<T>, 64>,
     waiting: Option<WaitingState<T>>,
-    stacked: Stack,
+    deque: Deque,
 }
 
 /// An event on the key matrix.
@@ -225,7 +225,7 @@ enum WaitingAction {
     NoOp,
 }
 impl<T> WaitingState<T> {
-    fn tick(&mut self, stacked: &Stack) -> WaitingAction {
+    fn tick(&mut self, stacked: &Deque) -> WaitingAction {
         self.timeout = self.timeout.saturating_sub(1);
         match self.config {
             HoldTapConfig::Default => (),
@@ -290,7 +290,7 @@ impl<T: 'static, const C: usize, const R: usize, const L: usize> Layout<T, C, R,
             default_layer: 0,
             states: Vec::new(),
             waiting: None,
-            stacked: ArrayDeque::new(),
+            deque: ArrayDeque::new(),
         }
     }
     /// Iterates on the key codes of the current state.
@@ -325,14 +325,14 @@ impl<T: 'static, const C: usize, const R: usize, const L: usize> Layout<T, C, R,
     /// custom actions thanks to the `Action::Custom` variant.
     pub fn tick(&mut self) -> CustomEvent<T> {
         self.states = self.states.iter().filter_map(State::tick).collect();
-        self.stacked.iter_mut().for_each(Stacked::tick);
+        self.deque.iter_mut().for_each(Stacked::tick);
         match &mut self.waiting {
-            Some(w) => match w.tick(&self.stacked) {
+            Some(w) => match w.tick(&self.deque) {
                 WaitingAction::Hold => self.waiting_into_hold(),
                 WaitingAction::Tap => self.waiting_into_tap(),
                 WaitingAction::NoOp => CustomEvent::NoEvent,
             },
-            None => match self.stacked.pop_front() {
+            None => match self.deque.pop_front() {
                 Some(s) => self.unstack(s),
                 None => CustomEvent::NoEvent,
             },
@@ -358,7 +358,7 @@ impl<T: 'static, const C: usize, const R: usize, const L: usize> Layout<T, C, R,
     }
     /// Register a key event.
     pub fn event(&mut self, event: Event) {
-        if let Some(stacked) = self.stacked.push_back(event.into()) {
+        if let Some(stacked) = self.deque.push_back(event.into()) {
             self.waiting_into_hold();
             self.unstack(stacked);
         }

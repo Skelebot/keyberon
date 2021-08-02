@@ -20,6 +20,7 @@ use usb_device::prelude::*;
 
 pub mod action;
 pub mod debounce;
+pub mod debounced_matrix;
 pub mod hid;
 pub mod key_code;
 pub mod keyboard;

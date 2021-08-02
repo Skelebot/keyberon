@@ -20,10 +20,10 @@ impl<T> Debouncer<T> {
     /// Create a new debouncer.
     ///
     /// `cur` and `new` corresponds to the initial state, they should
-    /// be equal at start. taking the 2 states allow `new` to be a
-    /// `const fn` and allow non clonable types to be used.
+    /// be equal at start. Taking 2 states allows `new` to be a
+    /// `const fn` and allows non clonable types to be used.
     ///
-    /// `nb_bounce` correspond to the number of update with same state
+    /// `nb_bounce` corresponds to the number of updates with same state
     /// needed to validate the new state.
     pub const fn new(cur: T, new: T, nb_bounce: u16) -> Self {
         Self {
@@ -87,35 +87,41 @@ impl<T: PartialEq> Debouncer<T> {
     /// );
     ///
     /// // no events
-    /// assert!(debouncer.update([[false, false], [false, false]]).is_none());
+    /// assert!(debouncer.events([[false, false], [false, false]]).is_none());
     ///
     /// // `(0, 1)` is being pressed, but debouncer is filtering
-    /// assert!(debouncer.update([[false, true], [false, false]]).is_none());
-    /// assert!(debouncer.update([[false, true], [false, false]]).is_none());
+    /// assert!(debouncer.events([[false, true], [false, false]]).is_none());
+    /// assert!(debouncer.events([[false, true], [false, false]]).is_none());
     ///
     /// // `(0, 1)` is stable enough, event appears.
-    /// let mut events = debouncer.update([[false, true], [false, false]]).unwrap();
+    /// let mut events = debouncer.events([[false, true], [false, false]]).unwrap();
     /// assert_eq!(events.next(), Some(Event::Press(0, 1)));
     /// assert_eq!(events.next(), None);
     /// ```
-    fn events<'a, U>(&'a mut self) -> impl Iterator<Item = Event> + 'a
+    pub fn events<'a, U>(&'a mut self, new: T) -> Option<impl Iterator<Item = Event> + 'a>
     where
         &'a T: IntoIterator<Item = U>,
         U: IntoIterator<Item = &'a bool>,
         U::IntoIter: 'a,
     {
-        self.new
-            .into_iter()
-            .zip(self.cur.into_iter())
-            .enumerate()
-            .flat_map(move |(i, (o, n))| {
-                o.into_iter().zip(n.into_iter()).enumerate().filter_map(
-                    move |(j, bools)| match bools {
-                        (false, true) => Some(Event::Press(i as u8, j as u8)),
-                        (true, false) => Some(Event::Release(i as u8, j as u8)),
-                        _ => None,
-                    },
-                )
-            })
+        if self.update(new) {
+            Some(
+                self.new
+                    .into_iter()
+                    .zip(self.cur.into_iter())
+                    .enumerate()
+                    .flat_map(move |(i, (o, n))| {
+                        o.into_iter().zip(n.into_iter()).enumerate().filter_map(
+                            move |(j, bools)| match bools {
+                                (false, true) => Some(Event::Press(i as u8, j as u8)),
+                                (true, false) => Some(Event::Release(i as u8, j as u8)),
+                                _ => None,
+                            },
+                        )
+                    }),
+            )
+        } else {
+            None
+        }
     }
 }

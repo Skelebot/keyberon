@@ -48,7 +48,7 @@ where
     // Scans the matrix and checks which keys are pressed.
     // Every row pin in order is pulled low, and then each column
     // pin is tested; if it's low, the key is marked as pressed.
-    pub fn get<E>(&mut self) -> Result<PressedKeys<CS, RS>, E>
+    pub fn scan<E>(&mut self) -> Result<PressedKeys<CS, RS>, E>
     where
         C: InputPin<Error = E>,
         R: OutputPin<Error = E>,
