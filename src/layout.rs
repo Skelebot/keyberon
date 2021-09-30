@@ -44,6 +44,7 @@
 ///     // ...
 /// };
 /// ```
+pub use keyberon_macros::layout;
 pub use keyberon_macros::*;
 
 use crate::action::{Action, HoldTapConfig};

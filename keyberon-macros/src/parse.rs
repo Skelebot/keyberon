@@ -16,9 +16,6 @@ pub fn parse_layout(input: TokenStream) -> TokenStream {
                     [#layer],
                 });
             }
-            //TokenTree::Punct(p) if p.as_char() == '#' => {
-
-            //},
             _ => abort!(t, "Invalid token, expected layer: {{ ... }}"),
         }
     }
