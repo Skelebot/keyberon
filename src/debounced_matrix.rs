@@ -79,7 +79,7 @@ where
         }
     }
 
-    pub fn scan(&mut self) -> Result<Option<impl Iterator<Item = Event> + '_ >, E> {
+    pub fn scan(&mut self) -> Result<Option<impl Iterator<Item = Event> + '_>, E> {
         if self.update()? {
             Ok(Some(
                 self.new

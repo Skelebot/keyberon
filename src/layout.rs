@@ -189,9 +189,6 @@ impl<T: 'static> State<T> {
             _ => None,
         }
     }
-    fn tick(&self) -> Option<Self> {
-        Some(*self)
-    }
     fn release(&self, c: (u8, u8), custom: &mut CustomEvent<T>) -> Option<Self> {
         match *self {
             NormalKey { coord, .. } | LayerModifier { coord, .. } if coord == c => None,
@@ -324,7 +321,7 @@ impl<T: 'static, const C: usize, const R: usize, const L: usize> Layout<T, C, R,
     /// Returns the corresponding `CustomEvent`, allowing to manage
     /// custom actions thanks to the `Action::Custom` variant.
     pub fn tick(&mut self) -> CustomEvent<T> {
-        self.states = self.states.iter().filter_map(State::tick).collect();
+        //self.states = self.states.iter().filter_map(State::tick).collect();
         self.deque.iter_mut().for_each(Stacked::tick);
         match &mut self.waiting {
             Some(w) => match w.tick(&self.deque) {
@@ -343,11 +340,12 @@ impl<T: 'static, const C: usize, const R: usize, const L: usize> Layout<T, C, R,
         match stacked.event {
             Release(i, j) => {
                 let mut custom = CustomEvent::NoEvent;
-                self.states = self
-                    .states
-                    .iter()
-                    .filter_map(|s| s.release((i, j), &mut custom))
-                    .collect();
+                //self.states = self
+                //    .states
+                //    .iter()
+                //    .filter_map(|s| s.release((i, j), &mut custom))
+                //    .collect();
+                self.states.map_retain(|s| s.release((i, j), &mut custom));
                 custom
             }
             Press(i, j) => {
@@ -456,6 +454,33 @@ impl<T: 'static, const C: usize, const R: usize, const L: usize> Layout<T, C, R,
     pub fn set_default_layer(&mut self, value: usize) {
         if value < self.layers.len() {
             self.default_layer = value
+        }
+    }
+}
+
+trait MapRetain<T> {
+    fn map_retain<F>(&mut self, f: F)
+    where
+        F: FnMut(&T) -> Option<T>;
+}
+
+impl<T, const S: usize> MapRetain<T> for Vec<T, { S }> {
+    fn map_retain<F>(&mut self, mut f: F)
+    where
+        F: FnMut(&T) -> Option<T>,
+    {
+        let mut processed = 0;
+        while processed < self.len() {
+            let res = f(&self[processed]);
+            match res {
+                Some(t) => {
+                    self[processed] = t;
+                    processed += 1;
+                }
+                None => unsafe {
+                    self.swap_remove_unchecked(processed);
+                },
+            }
         }
     }
 }
@@ -695,6 +720,30 @@ mod test {
     }
 
     #[test]
+    fn multiple_custom_actions() {
+        static LAYERS: Layers<u8, 1, 1, 1> = [[[MultipleActions(&[
+            Action::Custom(1),
+            Action::Custom(2),
+            Action::Custom(3),
+        ])]]];
+        let mut layout = Layout::new(&LAYERS);
+
+        // Custom event
+        layout.event(Press(0, 0));
+        assert_eq!(CustomEvent::Press(&1), layout.tick());
+        assert_keys(&[], layout.keycodes());
+
+        // nothing more
+        assert_eq!(CustomEvent::NoEvent, layout.tick());
+        assert_keys(&[], layout.keycodes());
+
+        // release custom
+        layout.event(Release(0, 0));
+        assert_eq!(CustomEvent::Release(&1), layout.tick());
+        assert_keys(&[], layout.keycodes());
+    }
+
+    #[test]
     fn custom() {
         static LAYERS: Layers<u8, 1, 1, 1> = [[[Action::Custom(42)]]];
         let mut layout = Layout::new(&LAYERS);
@@ -714,5 +763,17 @@ mod test {
         layout.event(Release(0, 0));
         assert_eq!(CustomEvent::Release(&42), layout.tick());
         assert_keys(&[], layout.keycodes());
+    }
+
+    #[test]
+    fn test_map_retain() {
+        let mut vec = Vec::<u32, 10>::new();
+        vec.extend_from_slice(&[1, 2, 3, 4, 5, 6, 7, 8]).unwrap();
+
+        // Remove every odd number
+        vec.map_retain(|n| if n % 2 == 0 { Some(*n) } else { None });
+
+        // Check that every number that's left is even
+        assert!(vec.iter().all(|n| n % 2 == 0));
     }
 }

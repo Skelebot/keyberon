@@ -42,8 +42,8 @@ impl<T: PartialEq> Debouncer<T> {
     }
 
     /// Updates the current state. Returns an iterator of new events if the state changes.
-    pub fn update<'a, U: 'a>(&'a mut self, new: T) -> Option<impl Iterator<Item = Event> + 'a> 
-        where
+    pub fn update<'a, U: 'a>(&'a mut self, new: T) -> Option<impl Iterator<Item = Event> + 'a>
+    where
         &'a T: IntoIterator<Item = U>,
         U: IntoIterator<Item = &'a bool>,
         U::IntoIter: 'a,
@@ -98,30 +98,25 @@ impl<T: PartialEq> Debouncer<T> {
     /// assert_eq!(events.next(), Some(Event::Press(0, 1)));
     /// assert_eq!(events.next(), None);
     /// ```
-    pub fn events<'a, U>(&'a mut self, new: T) -> Option<impl Iterator<Item = Event> + 'a>
+    pub fn events<'a, U>(&'a mut self) -> impl Iterator<Item = Event> + 'a
     where
         &'a T: IntoIterator<Item = U>,
         U: IntoIterator<Item = &'a bool>,
         U::IntoIter: 'a,
     {
-        if self.update(new) {
-            Some(
-                self.new
-                    .into_iter()
-                    .zip(self.cur.into_iter())
+        self.new
+            .into_iter()
+            .zip(self.cur.into_iter())
+            .enumerate()
+            .flat_map(move |(i, (o, n))| {
+                o.into_iter()
+                    .zip(n.into_iter())
                     .enumerate()
-                    .flat_map(move |(i, (o, n))| {
-                        o.into_iter().zip(n.into_iter()).enumerate().filter_map(
-                            move |(j, bools)| match bools {
-                                (false, true) => Some(Event::Press(i as u8, j as u8)),
-                                (true, false) => Some(Event::Release(i as u8, j as u8)),
-                                _ => None,
-                            },
-                        )
-                    }),
-            )
-        } else {
-            None
-        }
+                    .filter_map(move |(j, bools)| match bools {
+                        (false, true) => Some(Event::Press(i as u8, j as u8)),
+                        (true, false) => Some(Event::Release(i as u8, j as u8)),
+                        _ => None,
+                    })
+            })
     }
 }
