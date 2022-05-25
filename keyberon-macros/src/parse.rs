@@ -105,5 +105,5 @@ pub fn parse_keycode_group(input: TokenStream, out: &mut TokenStream) {
             TokenTree::Group(g) => parse_group(&g, &mut inner),
         }
     }
-    out.extend(quote! { keyberon::action::Action::MultipleActions(&[#inner]) });
+    out.extend(quote! { keyberon::action::Action::MultipleActions(&[#inner]), });
 }
